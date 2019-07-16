@@ -1,2 +1,0 @@
-# azalea
-fyp (signal visualization)
