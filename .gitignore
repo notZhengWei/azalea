@@ -1,3 +1,5 @@
 *.csv
 .idea/
 .vscode/
+products.sqlite
+portsearch

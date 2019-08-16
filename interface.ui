@@ -7,11 +7,11 @@
     <x>0</x>
     <y>0</y>
     <width>1131</width>
-    <height>636</height>
+    <height>900</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>fyp test</string>
+   <string>azalea</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
@@ -29,7 +29,27 @@
         <height>0</height>
        </size>
       </property>
-      <layout class="QVBoxLayout" name="layoutPlot"/>
+      <layout class="QVBoxLayout" name="layoutPlot">
+       <property name="leftMargin">
+        <number>13</number>
+       </property>
+       <property name="topMargin">
+        <number>8</number>
+       </property>
+       <property name="rightMargin">
+        <number>11</number>
+       </property>
+       <property name="bottomMargin">
+        <number>3</number>
+       </property>
+      </layout>
+     </widget>
+    </item>
+    <item row="0" column="1">
+     <widget class="Line" name="line">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
      </widget>
     </item>
     <item row="0" column="2">
@@ -56,7 +76,7 @@
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>17</y>
+         <y>165</y>
          <width>161</width>
          <height>60</height>
         </rect>
@@ -69,7 +89,7 @@
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>100</y>
+         <y>250</y>
          <width>161</width>
          <height>60</height>
         </rect>
@@ -82,9 +102,9 @@
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>325</y>
+         <y>444</y>
          <width>161</width>
-         <height>60</height>
+         <height>81</height>
         </rect>
        </property>
        <property name="text">
@@ -95,7 +115,7 @@
        <property name="geometry">
         <rect>
          <x>-10</x>
-         <y>250</y>
+         <y>325</y>
          <width>211</width>
          <height>20</height>
         </rect>
@@ -108,7 +128,7 @@
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>405</y>
+         <y>560</y>
          <width>101</width>
          <height>16</height>
         </rect>
@@ -121,7 +141,7 @@
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>425</y>
+         <y>580</y>
          <width>161</width>
          <height>31</height>
         </rect>
@@ -131,7 +151,7 @@
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>465</y>
+         <y>630</y>
          <width>121</width>
          <height>16</height>
         </rect>
@@ -144,7 +164,7 @@
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>485</y>
+         <y>650</y>
          <width>161</width>
          <height>31</height>
         </rect>
@@ -154,9 +174,9 @@
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>282</y>
+         <y>380</y>
          <width>161</width>
-         <height>31</height>
+         <height>51</height>
         </rect>
        </property>
        <property name="font">
@@ -178,7 +198,7 @@
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>185</y>
+         <y>80</y>
          <width>161</width>
          <height>51</height>
         </rect>
@@ -205,22 +225,15 @@
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>530</y>
+         <y>705</y>
          <width>161</width>
-         <height>28</height>
+         <height>61</height>
         </rect>
        </property>
        <property name="text">
         <string>Preview</string>
        </property>
       </widget>
-     </widget>
-    </item>
-    <item row="0" column="1">
-     <widget class="Line" name="line">
-      <property name="orientation">
-       <enum>Qt::Vertical</enum>
-      </property>
      </widget>
     </item>
    </layout>
