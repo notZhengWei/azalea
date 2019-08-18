@@ -47,8 +47,6 @@ window.classCheckTimer = None
 window.waveClass = None
 window.cap = None
 window.temp1 = False
-window.temp2 = False
-window.temp3 = False
 
 window.waveCounter = []
 wave_names = []
@@ -137,7 +135,7 @@ def load_raw():
 
             window.fetchTimer = QtCore.QTimer(window)
             window.fetchTimer.timeout.connect(fetch_raw)
-            window.fetchTimer.start(10)
+            window.fetchTimer.start(20)
             window.drawTimer = QtCore.QTimer(window)
             window.drawTimer.timeout.connect(roll_live)
             window.drawTimer.start(1000)
@@ -195,9 +193,6 @@ def fetch_raw():
     # print(end-start)
 
 def roll_live():
-    if window.temp2 == False:
-        print(int(QtCore.QThread.currentThreadId()))
-        window.temp2 = True
     x = len(window.ydata) * 0.02
     window.ax1.clear()
     window.ax1.set_title("time-amplitude")
