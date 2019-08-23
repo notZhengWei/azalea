@@ -25,19 +25,21 @@ window.setFixedSize(1131, 900)
 # WARNING!!!: max value of last wave range needs to be adjusted if sample rate is modified
 SAMPLE_RATE = 50
 SAMPLE_INTERVAL = 1.0/SAMPLE_RATE
-FFT_UPDATE_RATE = 10
+GRAPH_UPDATE_RATE = 10
 
 #WARNING!!!: Frame cutpoint values change from video to video
-DELTA_FRAMES = (0,268)
-THETA_FRAMES = (269, 390)
-ALPHA_FRAMES =(391, 685)
-BETA_FRAMES = (686, 1079)
+DELTA_FRAMES = (0,234)
+THETA_FRAMES = (235, 342)
+ALPHA_FRAMES =(605, 960)
+BETA_FRAMES = (343, 604)
+GAMMA_FRAMES = (961, 1261)
 
 WAVE_RANGES = (
     {"name": "delta", "min": 0, "max": 4, "color": "r", "frames": DELTA_FRAMES},
     {"name": "theta", "min": 4, "max": 8, "color": "g", "frames": THETA_FRAMES},
     {"name": "alpha", "min": 8, "max": 14, "color": "b", "frames": ALPHA_FRAMES},
     {"name": "beta", "min": 14, "max": 25, "color": "y", "frames": BETA_FRAMES},
+    {"name": "gamma", "min": 25, "max": 100, "color": "k", "frames": GAMMA_FRAMES}
 )
 
 window.xdata = np.array([])
@@ -45,10 +47,10 @@ window.ydata = np.array([])
 
 window.isLoading = False
 window.timer = None
-window.classCheckTimer = None
 window.waveClass = None
 window.cap = None
 window.fetchTimer = None
+window.classCheckTimer = None
 window.fetch_thread = None
 window.training_thread = None
 window.temp1 = False
@@ -75,7 +77,7 @@ window.figure = Figure()
 window.ax1 = window.figure.add_subplot(311, title="time-amplitude")
 window.ax2 = window.figure.add_subplot(312, title="fft")
 window.ax3 = window.figure.add_subplot(313, title="duration spent in wave range")
-window.figure.subplots_adjust(hspace=0.3)
+window.figure.subplots_adjust(hspace=0.6)
 
 window.canvas = FigureCanvas(window.figure)
 window.layoutPlot.addWidget(window.canvas)
@@ -86,7 +88,7 @@ def load_from_file():
     successful_load = load_csv()
     if successful_load:
         clear_wave_counter()
-        fft_segments = range(SAMPLE_RATE, len(window.ydata), FFT_UPDATE_RATE)
+        fft_segments = range(SAMPLE_RATE, len(window.ydata), GRAPH_UPDATE_RATE)
         for segment in fft_segments:
             x, y, peak_freq = calc_current_fft(segment)
             increase_wave_counter(peak_freq)
@@ -120,14 +122,14 @@ def load_csv():
 def plot_amp():
     window.ax1.clear()
     window.ax1.set_title("time-amplitude")
-    # window.ax1.set_xlim(left=0, right=20)
-    # window.xdata = np.arange(0, len(window.ydata)/SAMPLE_RATE, SAMPLE_INTERVAL)
-    start = time.time()
-    print("plotting graph...")
-    window.ax1.plot(window.xdata, window.ydata)
+    window.ax1.set_xlabel("time (s)")
+    window.ax1.set_ylabel("voltage (μV)")
+    if len(window.ax1.lines) == 0:
+        window.ax1.plot(window.xdata, window.ydata)
+    else:
+        update_count = SAMPLE_RATE / GRAPH_UPDATE_RATE
+        window.ax1.set_data(window.xdata[-(update_count):], window.ydata[-(update_count):])
     window.canvas.draw()
-    end = time.time()
-    print(end-start)
 
 
 def load_raw():
@@ -141,43 +143,43 @@ def load_raw():
             disable_input(window.isLoading)
             window.btnRoll.setText("Stop")
 
-            for duration in window.waveCounter[1]:
-                duration = 0.0
+            for count in range(len(window.waveCounter[1])):
+                window.waveCounter[1][count] = 0.0
 
             window.xdata = np.array([])
             window.ydata = np.array([])
             discard = window.ser.readline()
 
             # fetch_thread = threading.Thread(target=loop_fetch, daemon=True)
-            # window.fetch_thread = Fetch_Thread()
-            # window.fetch_thread.start()
-            window.fetchTimer = QtCore.QTimer(window)
-            window.fetchTimer.timeout.connect(fetch_raw)
-            window.fetchTimer.start(20)
+            window.fetch_thread = Fetch_Thread()
+            window.fetch_thread.start()
+            # window.fetchTimer = QtCore.QTimer(window)
+            # window.fetchTimer.timeout.connect(fetch_raw)
+            # window.fetchTimer.start(20)
 
             window.drawTimer = QtCore.QTimer(window)
-            window.drawTimer.timeout.connect(roll_live)
+            window.drawTimer.timeout.connect(plot_live)
             window.drawTimer.start(200)
 
             # training_thread = threading.Thread(target=start_train, daemon=True)
-            # window.training_thread = Training_Thread()
-            # window.training_thread.start()
-            window.classCheckTimer = QtCore.QTimer(window)
-            window.classCheckTimer.setSingleShot(True)
-            window.classCheckTimer.timeout.connect(video_init)
-            window.classCheckTimer.start(5000)
+            window.training_thread = Training_Thread()
+            window.training_thread.start()
+            # window.classCheckTimer = QtCore.QTimer(window)
+            # window.classCheckTimer.setSingleShot(True)
+            # window.classCheckTimer.timeout.connect(video_init)
+            # window.classCheckTimer.start(5000)
 
         except:
             window.lblLoadError.setText("no external device found")
             window.lblLoadError.setHidden(False)
     else:
-        window.fetchTimer.stop()
+        window.fetch_thread.timer.stop()
+        window.training_thread.timer.stop()
         window.drawTimer.stop()
         window.ser.close()
-        window.fetchTimer = None
-        window.drawTimer = None
         window.isLoading = False
         window.waveClass = None
+
 
         disable_input(window.isLoading)
         window.btnRoll.setText("Roll")
@@ -190,9 +192,8 @@ def loop_fetch():
 
 
 def fetch_raw():
-    if window.temp1 == False:
-        # print(int(QtCore.QThread.currentThreadId()))
-        window.temp1 = True
+    # if window.temp1 == False:
+    #     window.temp1 = True
     # start = time.time()
     try:
         if len(window.ser.readline().strip()) != 0:
@@ -206,14 +207,17 @@ def fetch_raw():
         x = len(window.ydata) * 0.02
         window.xdata = np.append(window.xdata, [x])
 
+    except ValueError:
+        print("unable to convert to float")
+        window.lblLoadError.setText("unable to convert to float")
+        window.lblLoadError.setHidden(False)
+
     except:
         window.ser.close()
-        window.fetchTimer.stop()
+        window.fetch_thread.timer.stop()
         window.drawTimer.stop()
         window.isLoading = False
-        # window.fetch_thread.fetchTimer = None
-        window.drawTimer = None
-        # window.training_thread.classCheckTimer = None
+        window.training_thread.timer.stop()
         window.waveClass = None
         window.lblLoadError.setText("external device disconnected")
         window.lblLoadError.setHidden(False)
@@ -230,19 +234,17 @@ def start_train():
     window.classCheckTimer.start(2000)
 
 
-def roll_live():
-    x = len(window.ydata) * 0.02
-    window.ax1.clear()
-    window.ax1.set_title("time-amplitude")
-    
+def plot_live():
+    x = len(window.xdata) * 0.02
     max_width = 5
+    print("plotting graph...")
+    plot_amp()
     if x > max_width:
         window.ax1.set_xlim(left=x-max_width, right=x)
     else:
         window.ax1.set_xlim(left=0, right=max_width)
     
-    # print(len(window.xdata))
-    window.ax1.plot(window.xdata, window.ydata)
+    # window.ax1.plot(window.xdata, window.ydata)
     if (len(window.ydata) >= 50):
         x, y, peak = calc_current_fft(len(window.ydata) - 1)
         increase_wave_counter(peak)
@@ -285,12 +287,14 @@ def plot_fft(x, y):
     
     window.ax2.clear()
     window.ax2.set_title("fft")
+    window.ax2.set_xlabel("frequency (Hz)")
     window.ax2.plot(x, y, color=fftColor)
 
 
 def plot_histogram():
     window.ax3.clear()
     window.ax3.set_title("duration spent in wave range")
+    window.ax3.set_ylabel("time (s)")
     x = window.waveCounter[0]
     y = window.waveCounter[1]
     window.ax3.bar(x, y, color=window.waveCounter[2])
@@ -404,8 +408,8 @@ def save_file():
                 else:
                     np.savetxt(f, window.ydata, delimiter=',', header='number')
                 
-            window.lblSaveError.setText("data saved")
-            window.lblSaveError.setHidden(False)
+                window.lblSaveError.setText("data saved")
+                window.lblSaveError.setHidden(False)
 
 
 def disable_input(a: bool):
@@ -428,24 +432,22 @@ def save_preview():
 
 
 class Fetch_Thread(QtCore.QThread):
-    fetchTimer = None
+    timer = None
     def run(self):
-        self.fetchTimer = QtCore.QTimer()
-        self.fetchTimer.timeout.connect(fetch_raw)
-        self.fetchTimer.start(20)
-        while self.fetchTimer != None:
-            time.sleep(0.02)
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(fetch_raw)
+        self.timer.start(20)
+        self.exec()
 
 
 class Training_Thread(QtCore.QThread):
-    classCheckTimer = None
+    timer = None
     def run(self):
-        self.classCheckTimer = QtCore.QTimer()
-        self.classCheckTimer.setSingleShot(True)
-        self.classCheckTimer.timeout.connect(video_init)
-        self.classCheckTimer.start(2000)
-        while self.classCheckTimer != None:
-            time.sleep(0.2)
+        self.timer = QtCore.QTimer()
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(video_init)
+        self.timer.start(4000)
+        self.exec()
 
 
 window.btnLoad.clicked.connect(load_from_file)
