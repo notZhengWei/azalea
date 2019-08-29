@@ -8,9 +8,9 @@ from matplotlib.figure import Figure
 
 import numpy as np
 import serial as serial
+import serial.tools.list_ports as port_list
 import time
 import cv2
-import threading
 
 
 app = QApplication([])
@@ -28,6 +28,7 @@ SAMPLE_INTERVAL = 1.0/SAMPLE_RATE
 GRAPH_UPDATE_RATE = 10
 
 #WARNING!!!: Frame cutpoint values change from video to video
+VIDEO_NAME = "hologram.mp4"
 DELTA_FRAMES = (0,234)
 THETA_FRAMES = (235, 342)
 ALPHA_FRAMES =(605, 960)
@@ -45,21 +46,17 @@ WAVE_RANGES = (
 window.xdata = np.array([])
 window.ydata = np.array([])
 
-window.isLoading = False
+window.isLoading = False            
 window.timer = None
 window.waveClass = None
 window.cap = None
-window.fetchTimer = None
-window.classCheckTimer = None
 window.fetch_thread = None
 window.training_thread = None
-window.temp1 = False
-
 window.waveCounter = []
 wave_names = []
 wave_duration = []
 wave_colors = []
-for wave in WAVE_RANGES:
+for wave in WAVE_RANGES:            #create array for holding graph 3 info
     wave_names.append(wave["name"])
     wave_duration.append(0.0)
     wave_colors.append(wave["color"])
@@ -67,11 +64,6 @@ for wave in WAVE_RANGES:
 window.waveCounter.append(wave_names)
 window.waveCounter.append(wave_duration)
 window.waveCounter.append(wave_colors)
-
-# window.waveClass = WAVE_RANGES[2]
-
-VIDEO_NAME = "hologram.mp4"
-FRAME_CUTPOINTS = (268, 390, 685, 1079, 1469)
 
 window.figure = Figure()
 window.ax1 = window.figure.add_subplot(311, title="time-amplitude")
@@ -85,15 +77,15 @@ window.toolbar = NavigationToolbar(window.canvas, window.wgtPlot, coordinates=Tr
 window.layoutPlot.addWidget(window.toolbar)         
 
 def load_from_file():
-    successful_load = load_csv()
+    successful_load = load_csv()            #load csv file into memory
     if successful_load:
-        clear_wave_counter()
+        clear_wave_counter()            #clear bottom graph wave counters
         fft_segments = range(SAMPLE_RATE, len(window.ydata), GRAPH_UPDATE_RATE)
-        for segment in fft_segments:
+        for segment in fft_segments:            #do fft analysis for previous 1s segment for each 0.2s after the 1s mark
             x, y, peak_freq = calc_current_fft(segment)
             increase_wave_counter(peak_freq)
-        plot_amp()
-        plot_histogram()
+        plot_amp()          #plot graph 1
+        plot_histogram()            #plot graph 3
 
 
 def load_csv():
@@ -109,8 +101,7 @@ def load_csv():
                 temp = float(line).__round__(4)
                 window.ydata = np.append(window.ydata, [temp])
 
-        window.xdata = np.arange(0, len(window.ydata)/SAMPLE_RATE, SAMPLE_INTERVAL)   
-        print(window.xdata[:50]) 
+        window.xdata = np.arange(0, len(window.ydata)/SAMPLE_RATE, SAMPLE_INTERVAL)
         print("data loaded")
         return True
     else:
@@ -124,7 +115,7 @@ def plot_amp():
     window.ax1.set_title("time-amplitude")
     window.ax1.set_xlabel("time (s)")
     window.ax1.set_ylabel("voltage (μV)")
-    if len(window.ax1.lines) == 0:
+    if len(window.ax1.lines) == 0:          #plot graph if graph has no line yet, update tip of line if there is
         window.ax1.plot(window.xdata, window.ydata)
     else:
         update_count = SAMPLE_RATE / GRAPH_UPDATE_RATE
@@ -134,40 +125,31 @@ def plot_amp():
 
 def load_raw():
     
-    if not window.isLoading:
+    if not window.isLoading:            #start loading if not loading and stop loading if loading
         try:
-            window.lblLoadError.setHidden(True)         
-            window.ser = serial.Serial('COM4', baudrate=9600, timeout=1)
+            window.lblLoadError.setHidden(True)
+            port = get_port()           #use first port in list of com ports, should detect no com ports if no legacy devices are connected
+            print(port)
+            window.ser = serial.Serial(port, baudrate=9600, timeout=1)          #open connection to port
 
             window.isLoading = True
-            disable_input(window.isLoading)
+            disable_input(window.isLoading)         #disable buttons during loading
             window.btnRoll.setText("Stop")
-
-            for count in range(len(window.waveCounter[1])):
-                window.waveCounter[1][count] = 0.0
+            clear_wave_counter()
 
             window.xdata = np.array([])
             window.ydata = np.array([])
-            discard = window.ser.readline()
+            discard = window.ser.readline()         #discard fist line, normally has characters that are not data we want
 
-            # fetch_thread = threading.Thread(target=loop_fetch, daemon=True)
-            window.fetch_thread = Fetch_Thread()
+            window.fetch_thread = Fetch_Thread()            #launch thread that does fetching
             window.fetch_thread.start()
-            # window.fetchTimer = QtCore.QTimer(window)
-            # window.fetchTimer.timeout.connect(fetch_raw)
-            # window.fetchTimer.start(20)
 
-            window.drawTimer = QtCore.QTimer(window)
+            window.drawTimer = QtCore.QTimer(window)            #use main thread for drawing graphs
             window.drawTimer.timeout.connect(plot_live)
             window.drawTimer.start(200)
 
-            # training_thread = threading.Thread(target=start_train, daemon=True)
-            window.training_thread = Training_Thread()
+            window.training_thread = Training_Thread()          #launch thread that updates attention training interface
             window.training_thread.start()
-            # window.classCheckTimer = QtCore.QTimer(window)
-            # window.classCheckTimer.setSingleShot(True)
-            # window.classCheckTimer.timeout.connect(video_init)
-            # window.classCheckTimer.start(5000)
 
         except:
             window.lblLoadError.setText("no external device found")
@@ -179,31 +161,34 @@ def load_raw():
         window.ser.close()
         window.isLoading = False
         window.waveClass = None
-
+        window.lblLoadError.setHidden(True)
 
         disable_input(window.isLoading)
         window.btnRoll.setText("Roll")
 
 
-def loop_fetch():
-    window.fetchTimer = QtCore.QTimer(window)
-    window.fetchTimer.timeout.connect(fetch_raw)
-    window.fetchTimer.start(20)
+def get_port():
+    comports = list(port_list.comports())           #get list of com ports
+    if len(comports) > 0:
+        portname = str(comports[0])         #get name of first port in list
+        split = portname.split(' ')         #get the comport ID which is the first few characters before first space in name
+        portnum = split[0]
+        return portnum
+    else:
+        return None
 
 
 def fetch_raw():
-    # if window.temp1 == False:
-    #     window.temp1 = True
     # start = time.time()
     try:
-        if len(window.ser.readline().strip()) != 0:
+        if len(window.ser.readline().strip()) != 0:         #strip data of irrelevant characters such as newline
             rawdata = float(window.ser.readline().strip())
         else:
             rawdata = 10
 
-        print(rawdata)
+        # print(rawdata)
 
-        window.ydata = np.append(window.ydata, [rawdata])
+        window.ydata = np.append(window.ydata, [rawdata])       #append read data to memory
         x = len(window.ydata) * 0.02
         window.xdata = np.append(window.xdata, [x])
 
@@ -227,25 +212,16 @@ def fetch_raw():
     # print(end-start)
 
 
-def start_train():
-    window.classCheckTimer = QtCore.QTimer(window)
-    window.classCheckTimer.setSingleShot(True)
-    window.classCheckTimer.timeout.connect(video_init)
-    window.classCheckTimer.start(2000)
-
-
 def plot_live():
     x = len(window.xdata) * 0.02
-    max_width = 5
-    print("plotting graph...")
+    max_width = 5                                                        #set range for visible x values
     plot_amp()
-    if x > max_width:
+    if x > max_width:                                                    #create scrolling effect of graph
         window.ax1.set_xlim(left=x-max_width, right=x)
     else:
         window.ax1.set_xlim(left=0, right=max_width)
     
-    # window.ax1.plot(window.xdata, window.ydata)
-    if (len(window.ydata) >= 50):
+    if (len(window.ydata) >= 50):                                        #calculate fft if more than 1s of data has been collected and plot graph 2 and 3
         x, y, peak = calc_current_fft(len(window.ydata) - 1)
         increase_wave_counter(peak)
         plot_fft(x, y)
@@ -254,13 +230,13 @@ def plot_live():
 
 
 def calc_current_fft(endpoint):
-    sample = window.ydata[(endpoint - SAMPLE_RATE):(endpoint + 1)]
-    adjusted_sample = np.subtract(sample, np.average(sample))
-    fftY = np.fft.fft(adjusted_sample)
-    fftY = 2.0/SAMPLE_RATE * np.abs(fftY[:int(SAMPLE_RATE/2)])
-    fftX = np.linspace(0, int(SAMPLE_RATE/2), int(SAMPLE_RATE/2))
-    peak_index = np.where(fftY == np.amax(fftY))[0][0]
-    peak_freq = fftX[peak_index]
+    sample = window.ydata[(endpoint - SAMPLE_RATE):(endpoint + 1)]      #take past 1s of data as sample
+    adjusted_sample = np.subtract(sample, np.average(sample))           #sample - sample average to prevent spiking of fft graph at 0
+    fftY = np.fft.fft(adjusted_sample)                                  #fft
+    fftY = 2.0/SAMPLE_RATE * np.abs(fftY[:int(SAMPLE_RATE/2)])          #scale down fft results to max val 1, take latter half of fft results (positive half, negative half is just mirrored)
+    fftX = np.linspace(0, int(SAMPLE_RATE/2), int(SAMPLE_RATE/2))       #x-axis values representing frequency, max frequency is half of samples/sec
+    peak_index = np.where(fftY == np.amax(fftY))[0][0]                  #find y value of peak
+    peak_freq = fftX[peak_index]                                        #find y value of peak
     return (fftX, fftY, peak_freq)
 
 
@@ -270,11 +246,9 @@ def clear_wave_counter():
 
 
 def increase_wave_counter(freq):
-    color = "k"
-
-    window.waveClass = next((wave for wave in WAVE_RANGES if freq > wave["min"] and freq <= wave["max"]), None)
+    window.waveClass = next((wave for wave in WAVE_RANGES if freq > wave["min"] and freq <= wave["max"]), None)         #find waveclass that frequency belongs to, uses list comprehension in attempt at optimization
     if window.waveClass is not None:
-        index_to_increase = (next(window.waveCounter[0].index(wave) for wave in window.waveCounter[0] if wave == window.waveClass["name"]))
+        index_to_increase = (next(window.waveCounter[0].index(wave) for wave in window.waveCounter[0] if wave == window.waveClass["name"]))         #find counter to increase, again uses list comprehension
         window.waveCounter[1][index_to_increase] += 0.2
 
 
@@ -306,7 +280,7 @@ def video_breakdown():
     cv2.destroyAllWindows()
 
 
-def video_init():
+def video_init():           #starts attention training interface if a current wave class is found
     hasClass = True
 
     try:
@@ -320,40 +294,38 @@ def video_init():
         window.cap = cv2.VideoCapture(VIDEO_NAME)
         cv2.namedWindow('azalea')
         load_frames()
-    else:
-        print(hasClass)
 
 
 def load_frames():
     current_frame = window.waveClass["frames"][0]
     # print(current_frame)
-    while window.waveClass is not None:
+    while window.waveClass is not None:                                     #infinite loop until waveclass is set to none which happens when you press the stop button
         counter = 0
         start_frame = window.waveClass["frames"][0]
         end_frame = window.waveClass["frames"][1]
 
-        if current_frame >= start_frame and current_frame < end_frame:
+        if current_frame >= start_frame and current_frame < end_frame:      #loop back to first frame if end is reached for segment
             window.cap.set(1, current_frame)
         else:
             window.cap.set(1, start_frame)
             current_frame = start_frame
 
-        while counter < 5:
-            if current_frame + counter > end_frame:           #designed to be triggered only once per while loop, sets currentframe to start for video looping
+        while counter < 5:                                                  #shows 5 frames before checking wave class again     
+            if current_frame + counter > end_frame:                         #designed to be triggered only once per while loop, sets currentframe to start for video looping
                 window.cap.set(1, start_frame)
                 current_frame = start_frame
                     
-            check, frame = window.cap.read()
-            cv2.imshow("azalea", frame)
+            check, frame = window.cap.read()                                #read next frame
+            cv2.imshow("azalea", frame)                                     #show frame
 
             current_frame += 1
             counter += 1
-            cv2.waitKey(40)
+            cv2.waitKey(40)                                                 #frame delay of 40ms, 5 frames is 0.2s total
 
     video_breakdown()
 
 
-def validate_from_to(from_val, to_val):
+def validate_from_to(from_val, to_val):                                     #validation for from and to textbox data before performing functions
     save = False
     left = None
     right = None
@@ -412,7 +384,7 @@ def save_file():
                 window.lblSaveError.setHidden(False)
 
 
-def disable_input(a: bool):
+def disable_input(a: bool):             #disable elements during live data loading
     window.btnLoad.setEnabled(not a)
     window.btnSave.setEnabled(not a)
     window.tfFrom.setEnabled(not a)
@@ -433,8 +405,9 @@ def save_preview():
 
 class Fetch_Thread(QtCore.QThread):
     timer = None
-    def run(self):
-        self.timer = QtCore.QTimer()
+    def run(self):                                  #fetch data from port every 20ms
+        print("fetch_thread started")
+        self.timer = QtCore.QTimer()        
         self.timer.timeout.connect(fetch_raw)
         self.timer.start(20)
         self.exec()
@@ -442,15 +415,16 @@ class Fetch_Thread(QtCore.QThread):
 
 class Training_Thread(QtCore.QThread):
     timer = None
-    def run(self):
+    def run(self):                                  #start attention training interface after 5s
+        print("training thread started")
         self.timer = QtCore.QTimer()
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(video_init)
-        self.timer.start(4000)
+        self.timer.start(5000)
         self.exec()
 
 
-window.btnLoad.clicked.connect(load_from_file)
+window.btnLoad.clicked.connect(load_from_file)              #connect buttons to functions
 window.btnSave.clicked.connect(save_file)
 window.btnRoll.clicked.connect(load_raw)
 window.btnSavePreview.clicked.connect(save_preview)
