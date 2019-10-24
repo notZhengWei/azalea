@@ -1,5 +1,6 @@
 import sys
 import csv
+import os
 from PyQt5.QtWidgets import *
 from PyQt5 import uic, QtCore
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -13,9 +14,17 @@ import time
 import cv2
 
 
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
 app = QApplication([])
 
-window = uic.loadUi('interface.ui')
+window = uic.loadUi(resource_path('interface.ui'))
 
 children = window.findChildren(QWidget)
 print(children)
@@ -28,7 +37,7 @@ SAMPLE_INTERVAL = 1.0/SAMPLE_RATE
 GRAPH_UPDATE_RATE = 10
 
 #WARNING!!!: Frame cutpoint values change from video to video
-VIDEO_NAME = "hologram.mp4"
+VIDEO_NAME = resource_path("hologram.mp4")
 DELTA_FRAMES = (0,234)
 THETA_FRAMES = (235, 342)
 ALPHA_FRAMES =(605, 960)
@@ -184,7 +193,7 @@ def fetch_raw():
         if len(window.ser.readline().strip()) != 0:         #strip data of irrelevant characters such as newline
             rawdata = float(window.ser.readline().strip())
         else:
-            rawdata = 10
+            rawdata = 0
 
         # print(rawdata)
 
